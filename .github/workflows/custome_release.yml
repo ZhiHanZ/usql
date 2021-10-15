@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Release assets
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          # Linux
+          - {os: ubuntu-latest, goos: linux, goarch: amd64}
+          - {os: ubuntu-latest, goos: linux, goarch: arm64}
+          # Macos
+          - {os: macos-latest, goos: darwin, goarch: amd64}
+          - {os: macos-latest, goos: darwin, goarch: arm64}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.9'
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Build Binary
+        run: |
+          mkdir -p target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}
+          GOOS=${{ matrix.config.goos }} GOARCH=${{ matrix.config.goarch }} CGO_ENABLED=0 go build -tags 'mysql clickhouse  no_sqlite3 no_adodb no_postgres no_sqlserver no_oracle' -o ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
+          if [ ${{ matrix.config.goarch }} = amd64 ]; then
+              ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql -c '\drivers'
+          fi
+          file ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
+      - name: Pack binaries
+        run: |
+          tar -C ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }} -czvf usql-databend-${{ steps.get_version.outputs.VERSION }}-${{ matrix.config.goos }}-${{ matrix.config.goarch }}.tar.gz usql
+
+      - name: Release usql
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: usql-databend-${{ steps.get_version.outputs.VERSION }}-${{ matrix.config.goos }}-${{ matrix.config.goarch }}.*
+          asset_name: usql-databend-${{ steps.get_version.outputs.VERSION }}-${{ matrix.config.goos }}-${{ matrix.config.goarch }}
+          tag: ${{ github.ref }}
+          file_glob: true
+          overwrite: true
+          body: ${{ steps.changelog_reader.outputs.log_entry }}

@@ -35,11 +35,10 @@ jobs:
         run: |
           if [ ${{ matrix.config.os }} = ubuntu-latest ]; then
               sudo apt-get -qq update
-              sudo apt-get install -y build-essential libicu-dev unixodbc unixodbc-dev upx strip
+              sudo apt-get install -y build-essential libicu-dev unixodbc unixodbc-dev upx
           fi
           if [ ${{ matrix.config.os }} = macos-latest ]; then
               brew install upx
-              brew install strip
           fi
       - name: Build Binary
         run: |
@@ -47,6 +46,8 @@ jobs:
           GOOS=${{ matrix.config.goos }} GOARCH=${{ matrix.config.goarch }} CGO_ENABLED=0 go build -tags 'mysql clickhouse  no_sqlite3 no_adodb no_postgres no_sqlserver no_oracle' -o ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
           if [ ${{ matrix.config.goarch }} = amd64 ]; then
               ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql -c '\drivers'
+              strip ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
+              upx -q -q ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
           fi
           file ./target/${{ matrix.config.goos }}/${{ matrix.config.goarch }}/usql
       - name: Pack binaries
